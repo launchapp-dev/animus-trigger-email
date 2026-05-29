@@ -43,7 +43,7 @@ import {
 import type { Transporter } from "nodemailer";
 
 const NAME = "animus-trigger-email";
-const VERSION = "0.1.1";
+const VERSION = "0.1.2";
 const DESCRIPTION = "Email trigger plugin — IMAP IDLE inbound + SMTP outbound (threaded replies)";
 
 const METHODS = [

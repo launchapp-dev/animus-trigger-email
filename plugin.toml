@@ -1,6 +1,6 @@
 schema = "animus.plugin.v1"
 name = "animus-trigger-email"
-version = "0.1.1"
+version = "0.1.2"
 plugin_kind = "trigger_backend"
 description = "Email trigger plugin — IMAP IDLE inbound + SMTP outbound (threaded replies)"
 

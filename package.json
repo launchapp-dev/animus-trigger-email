@@ -1,6 +1,6 @@
 {
   "name": "@launchapp-dev/animus-trigger-email",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": false,
   "description": "Animus trigger plugin — IMAP IDLE inbound + SMTP outbound, threaded replies, universal mailbox compatibility (Gmail / Outlook / iCloud / custom IMAP).",
   "license": "Elastic-2.0",
