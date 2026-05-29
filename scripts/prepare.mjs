@@ -2,10 +2,10 @@
 // package is installed as a git dependency by another project. The git-install
 // flow is the one `animus plugin install launchapp-dev/animus-trigger-email`
 // uses: npm clones, runs `prepare`, then resolves the `bin` entry. Without a
-// build here, `dist/index.js` would not exist on disk and the daemon would
+// build here, `dist/index.cjs` would not exist on disk and the daemon would
 // spawn a missing binary.
 //
-// We skip the build when `dist/index.js` already exists (release tarballs that
+// We skip the build when `dist/index.cjs` already exists (release tarballs that
 // include the artifact) and when tsup is unavailable (CI environments that
 // only run typecheck).
 
@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..");
-const distEntry = resolve(repoRoot, "dist", "index.js");
+const distEntry = resolve(repoRoot, "dist", "index.cjs");
 
 if (existsSync(distEntry)) {
   // Already built (released tarball or local dev rebuild). Nothing to do.

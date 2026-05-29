@@ -28,6 +28,6 @@ jobs:
         run: npm run build
       - name: Manifest probe
         run: |
-          OUT=$(node dist/index.js --manifest)
+          OUT=$(node dist/index.cjs --manifest)
           echo "$OUT"
           echo "$OUT" | node -e 'const fs=require("fs");const j=JSON.parse(fs.readFileSync(0,"utf8"));if(j.plugin_kind!=="trigger_backend"){console.error("expected plugin_kind=trigger_backend, got",j.plugin_kind);process.exit(1)}'

@@ -2,15 +2,16 @@ import { defineConfig } from "tsup";
 
 export default defineConfig({
   entry: ["src/index.ts"],
-  format: ["esm"],
+  format: ["cjs"],
   target: "node20",
   outDir: "dist",
   clean: true,
   splitting: false,
   minify: true,
-  // Bundle the SDK + its small runtime deps so the published plugin works as a
-  // single self-contained file at `dist/index.js` (the binary entry).
-  noExternal: ["@launchapp-dev/animus-plugin-sdk"],
+  // Bundle runtime deps so the release asset can be installed as a single
+  // executable file by `animus plugin install`.
+  noExternal: ["@launchapp-dev/animus-plugin-sdk", "imapflow", "mailparser", "nodemailer"],
+  outExtension: () => ({ js: ".cjs" }),
   banner: {
     js: "#!/usr/bin/env node",
   },

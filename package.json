@@ -9,7 +9,7 @@
     "node": ">=20"
   },
   "bin": {
-    "animus-trigger-email": "dist/index.js"
+    "animus-trigger-email": "dist/index.cjs"
   },
   "files": [
     "dist",
@@ -24,11 +24,11 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "start": "node dist/index.js",
-    "manifest": "node dist/index.js --manifest"
+    "start": "node dist/index.cjs",
+    "manifest": "node dist/index.cjs --manifest"
   },
   "dependencies": {
-    "@launchapp-dev/animus-plugin-sdk": "git+https://github.com/launchapp-dev/animus-plugin-sdk-ts.git#v0.1.0",
+    "@launchapp-dev/animus-plugin-sdk": "github:launchapp-dev/animus-plugin-sdk-ts#v0.1.1",
     "imapflow": "^1.0.180",
     "mailparser": "^3.7.1",
     "nodemailer": "^6.9.16"
