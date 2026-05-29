@@ -1,0 +1,44 @@
+{
+  "name": "@launchapp-dev/animus-trigger-email",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Animus trigger plugin — IMAP IDLE inbound + SMTP outbound, threaded replies, universal mailbox compatibility (Gmail / Outlook / iCloud / custom IMAP).",
+  "license": "Elastic-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "animus-trigger-email": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "scripts",
+    "plugin.toml",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "postinstall": "node scripts/build-sdk.mjs",
+    "prepare": "node scripts/prepare.mjs",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "start": "node dist/index.js",
+    "manifest": "node dist/index.js --manifest"
+  },
+  "dependencies": {
+    "@launchapp-dev/animus-plugin-sdk": "git+https://github.com/launchapp-dev/animus-plugin-sdk-ts.git#v0.1.0",
+    "imapflow": "^1.0.180",
+    "mailparser": "^3.7.1",
+    "nodemailer": "^6.9.16"
+  },
+  "devDependencies": {
+    "@types/mailparser": "^3.4.5",
+    "@types/node": "^20.14.0",
+    "@types/nodemailer": "^6.4.17",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

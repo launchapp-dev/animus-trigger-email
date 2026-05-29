@@ -1,0 +1,89 @@
+schema = "animus.plugin.v1"
+name = "animus-trigger-email"
+version = "0.1.0"
+plugin_kind = "trigger_backend"
+description = "Email trigger plugin — IMAP IDLE inbound + SMTP outbound (threaded replies)"
+
+[capabilities]
+streaming = true
+progress = false
+cancellation = false
+methods = [
+  "trigger/watch",
+  "trigger/ack",
+  "trigger/schema",
+  "email/send_reply",
+  "email/send_new",
+  "email/forward",
+  "health/check",
+]
+
+[binary]
+default = "animus-trigger-email"
+
+[[env]]
+key = "EMAIL_IMAP_HOST"
+description = "IMAP server hostname (e.g. imap.gmail.com, outlook.office365.com, imap.mail.me.com)."
+required = true
+
+[[env]]
+key = "EMAIL_IMAP_PORT"
+description = "IMAP port (typically 993 for TLS)."
+required = true
+
+[[env]]
+key = "EMAIL_IMAP_USER"
+description = "IMAP username (usually full email address)."
+required = true
+
+[[env]]
+key = "EMAIL_IMAP_PASS"
+description = "IMAP password or app-specific password. Gmail/iCloud REQUIRE an app password — regular account passwords will fail."
+required = true
+sensitive = true
+
+[[env]]
+key = "EMAIL_IMAP_TLS"
+description = "Use TLS for IMAP. Default 'true'. Set to 'false' only for local test mailboxes."
+required = false
+
+[[env]]
+key = "EMAIL_SMTP_HOST"
+description = "SMTP server hostname (e.g. smtp.gmail.com, smtp.office365.com, smtp.mail.me.com)."
+required = true
+
+[[env]]
+key = "EMAIL_SMTP_PORT"
+description = "SMTP port (587 for STARTTLS, 465 for implicit TLS)."
+required = true
+
+[[env]]
+key = "EMAIL_SMTP_USER"
+description = "SMTP username (usually full email address)."
+required = true
+
+[[env]]
+key = "EMAIL_SMTP_PASS"
+description = "SMTP password or app-specific password."
+required = true
+sensitive = true
+
+[[env]]
+key = "EMAIL_FROM_ADDRESS"
+description = "Default From: address used by outbound RPCs. Format: 'Display Name <addr@example.com>' or just 'addr@example.com'."
+required = true
+
+[[env]]
+key = "EMAIL_INBOUND_FOLDER"
+description = "IMAP folder to watch. Default 'INBOX'."
+required = false
+
+[[env]]
+key = "EMAIL_INBOUND_FILTER_SUBJECT"
+description = "Optional regex applied to Subject: header — only matching messages emit events."
+required = false
+
+[[env]]
+key = "EMAIL_INBOUND_MARK_SEEN_ON_ACK"
+description = "When the host calls trigger/ack, mark the message as \\Seen via IMAP STORE. Default 'true'."
+required = false
