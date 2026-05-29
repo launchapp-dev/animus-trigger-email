@@ -130,6 +130,9 @@ describe("buildInboundPayload", () => {
     expect(payload.references).toEqual([]);
     expect(payload.date).toBe("2026-01-15T10:30:00.000Z");
     expect(payload.attachments_meta).toEqual([]);
+    // buildInboundPayload returns the raw mail payload — kind/occurred_at are
+    // added by buildInboundEvent when nesting under TriggerEvent.payload.
+    expect((payload as unknown as Record<string, unknown>).kind).toBeUndefined();
   });
 
   it("strips angle brackets from In-Reply-To and References", () => {
@@ -157,18 +160,33 @@ describe("buildInboundPayload", () => {
   });
 });
 
-describe("buildInboundEvent", () => {
-  it("emits kind=email.received and action_hint=create_task", () => {
+describe("buildInboundEvent (flat TriggerEvent shape)", () => {
+  it("emits flat shape matching the Rust TriggerEvent struct field-for-field", () => {
     const event = buildInboundEvent(fakeParsed() as never, 42);
-    expect(event.kind).toBe(KIND_EMAIL_RECEIVED);
-    expect(event.action_hint).toBe(ACTION_HINT_CREATE_TASK);
+    // Flat top-level fields per crates/animus-plugin-protocol/src/lib.rs
+    expect(event.event_id).toBe("email:orig-001@example.com");
+    expect(event.trigger_id).toBeNull();
     expect(event.subject_id).toBeNull();
-    expect(event.id).toBe("email:orig-001@example.com");
+    expect(event.subject_kind).toBeNull();
+    expect(event.action_hint).toBe(ACTION_HINT_CREATE_TASK);
+    // Mail data plus envelope metadata lives under `payload`.
+    expect(event.payload.kind).toBe(KIND_EMAIL_RECEIVED);
+    expect(event.payload.occurred_at).toBe("2026-01-15T10:30:00.000Z");
+    expect(event.payload.subject).toBe("hello");
+    // Legacy `id` field MUST be gone — the supervisor reads `event_id`.
+    expect((event as unknown as Record<string, unknown>).id).toBeUndefined();
+    expect((event as unknown as Record<string, unknown>).kind).toBeUndefined();
+    expect((event as unknown as Record<string, unknown>).occurred_at).toBeUndefined();
+  });
+
+  it("stamps trigger_id when the host provided one in trigger/watch params", () => {
+    const event = buildInboundEvent(fakeParsed() as never, 42, "email-inbox");
+    expect(event.trigger_id).toBe("email-inbox");
   });
 
   it("falls back to email:uid-<n> when Message-ID is missing", () => {
     const event = buildInboundEvent(fakeParsed({ messageId: undefined }) as never, 99);
-    expect(event.id).toBe("email:uid-99");
+    expect(event.event_id).toBe("email:uid-99");
   });
 });
 
@@ -196,19 +214,22 @@ describe("passesSubjectFilter", () => {
   });
 });
 
-describe("buildTriggerEventNotificationParams (spec §7.3)", () => {
-  it("echoes the watch request id in `id` and nests the event under `event`", () => {
+describe("buildTriggerEventNotificationParams (flat wire shape)", () => {
+  it("returns the TriggerEvent directly as params (no { id, event } wrapper)", () => {
+    // Wire contract verified against
+    // crates/orchestrator-daemon-runtime/src/schedule/trigger_supervisor.rs:289
+    // `serde_json::from_value::<TriggerEvent>(notification.params)` — params IS
+    // the TriggerEvent. The legacy `{ id, event }` shape from stale spec.md
+    // §7.3 is silently dropped by the supervisor.
     const event = buildInboundEvent(fakeParsed() as never, 12);
-    const params = buildTriggerEventNotificationParams(42, event);
-    expect(params).toEqual({ id: 42, event });
-    // Ensure we did NOT use the slack-style `trigger_id` key by accident.
-    expect((params as Record<string, unknown>).trigger_id).toBeUndefined();
-  });
-
-  it("accepts string and null request ids per JSON-RPC", () => {
-    const event = buildInboundEvent(fakeParsed() as never, 7);
-    expect(buildTriggerEventNotificationParams("req-42", event).id).toBe("req-42");
-    expect(buildTriggerEventNotificationParams(null, event).id).toBeNull();
+    const params = buildTriggerEventNotificationParams(event);
+    expect(params).toBe(event);
+    // The wrapper keys MUST NOT be present.
+    expect((params as unknown as Record<string, unknown>).id).toBeUndefined();
+    expect((params as unknown as Record<string, unknown>).event).toBeUndefined();
+    // The TriggerEvent's own top-level keys MUST be present.
+    expect((params as unknown as Record<string, unknown>).event_id).toBe("email:orig-001@example.com");
+    expect((params as unknown as Record<string, unknown>).action_hint).toBe(ACTION_HINT_CREATE_TASK);
   });
 });
 

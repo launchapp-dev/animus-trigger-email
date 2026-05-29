@@ -43,7 +43,7 @@ import {
 import type { Transporter } from "nodemailer";
 
 const NAME = "animus-trigger-email";
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 const DESCRIPTION = "Email trigger plugin — IMAP IDLE inbound + SMTP outbound (threaded replies)";
 
 const METHODS = [
@@ -112,11 +112,9 @@ class EmailPluginState {
   cfg: EmailConfig | null = null;
   transporter: Transporter | null = null;
   watcher: WatcherHandle | null = null;
-  // The `trigger/watch` request id echoed back on every `trigger/event`
-  // notification so the host can correlate them with the originating stream.
-  // Per spec §7.3: "subsequent events arrive as `trigger/event` notifications
-  // carrying the original request id in `params.id`."
-  watchRequestId: RpcId | null = null;
+  // Logical trigger id captured from `trigger/watch` params (if the host
+  // provided one) and echoed on every emitted `TriggerEvent.trigger_id`.
+  triggerId: string | null = null;
   // Map event_id -> UID so trigger/ack can mark the right message \Seen.
   uidByEventId: Map<string, number> = new Map();
 
@@ -139,6 +137,7 @@ async function handleTriggerWatch(
   state: EmailPluginState,
   wire: Wire,
   id: RpcId,
+  params: Record<string, unknown>,
 ): Promise<RpcResponse> {
   if (state.watcher) {
     return errorResponse(id, ErrorCode.InvalidRequest, "trigger/watch already active for this plugin instance");
@@ -147,34 +146,31 @@ async function handleTriggerWatch(
   try {
     cfg = state.loadConfig();
   } catch (err) {
-    // Per spec §7.3: "If the backend cannot open its upstream (e.g. missing
-    // credentials), it MUST return a JSON-RPC error response rather than emit
-    // a stream that fails on the first poll."
+    // If the backend cannot open its upstream (e.g. missing credentials), it
+    // MUST return a JSON-RPC error response rather than emit a stream that
+    // fails on the first poll.
     return errorResponse(id, ErrorCode.InvalidRequest, `email config invalid: ${String(err)}`);
   }
-  state.watchRequestId = id;
+  state.triggerId = typeof params.trigger_id === "string" ? params.trigger_id : null;
   logger("info", "starting imap watcher", describe(cfg));
 
   const watcher = startWatcher(cfg, {
     log: logger,
+    triggerId: state.triggerId,
     onEvent: async (event, uid) => {
-      state.uidByEventId.set(event.id, uid);
-      // Notification shape per spec §7.3: `{ id, event }` where `id` echoes the
-      // originating `trigger/watch` request id and `event` is a full
-      // `TriggerEvent`.
-      await wire.notify("trigger/event", buildTriggerEventNotificationParams(state.watchRequestId, event));
+      state.uidByEventId.set(event.event_id, uid);
+      // Wire shape: flat TriggerEvent as `params` directly. Matches
+      // `serde_json::from_value::<TriggerEvent>(notification.params)` in
+      // trigger_supervisor.rs:289.
+      await wire.notify("trigger/event", buildTriggerEventNotificationParams(event));
     },
   });
   state.watcher = watcher;
-  // Per spec §7.3: "If the backend cannot open its upstream (e.g. missing
-  // credentials), it MUST return a JSON-RPC error response rather than emit
-  // a stream that fails on the first poll." Await first-connect readiness
-  // before acking.
   try {
     await watcher.ready;
   } catch (err) {
     state.watcher = null;
-    state.watchRequestId = null;
+    state.triggerId = null;
     try {
       await watcher.stop();
     } catch {
@@ -331,7 +327,7 @@ async function dispatch(
         return okResponse(id, {});
       }
       case "trigger/watch":
-        return handleTriggerWatch(state, wire, id);
+        return handleTriggerWatch(state, wire, id, (frame.params ?? {}) as Record<string, unknown>);
       case "trigger/ack":
         return handleTriggerAck(state, id, (frame.params ?? {}) as Record<string, unknown>);
       case "trigger/schema":

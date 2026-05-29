@@ -19,6 +19,9 @@ export interface WatcherHooks {
   /** Called for every new inbound message (post-filter). */
   onEvent: (event: InboundEvent, uid: number) => Promise<void> | void;
   log: Logger;
+  /** Optional logical trigger id (from `trigger/watch` params.trigger_id) to
+   *  stamp on every emitted `TriggerEvent.trigger_id`. */
+  triggerId?: string | null;
 }
 
 export interface WatcherHandle {
@@ -142,7 +145,7 @@ export function startWatcher(cfg: EmailConfig, hooks: WatcherHooks): WatcherHand
     }
     if (!passesSubjectFilter(parsed, cfg.inboundFilterSubject)) return;
     emittedUids.add(uid);
-    const event = buildInboundEvent(parsed, uid);
+    const event = buildInboundEvent(parsed, uid, hooks.triggerId ?? null);
     try {
       await hooks.onEvent(event, uid);
     } catch (err) {

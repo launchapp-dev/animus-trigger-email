@@ -37,13 +37,29 @@ export interface InboundPayload {
   attachments_meta: InboundAttachmentMeta[];
 }
 
+/**
+ * Flat TriggerEvent shape matching the live Rust deserializer in
+ * `crates/animus-plugin-protocol/src/lib.rs` (`pub struct TriggerEvent`) and the
+ * supervisor at `crates/orchestrator-daemon-runtime/src/schedule/trigger_supervisor.rs:289`,
+ * which calls `serde_json::from_value::<TriggerEvent>(notification.params)` —
+ * so `params` IS the TriggerEvent (NOT a `{ id, event }` wrapper). Sibling
+ * plugins (Discord, Telegram, SMS-Twilio) all use this flat shape.
+ */
 export interface InboundEvent {
-  id: string;
-  occurred_at: string;
-  kind: string;
-  payload: InboundPayload;
+  event_id: string;
+  trigger_id: string | null;
   subject_id: string | null;
-  action_hint: string;
+  subject_kind: string | null;
+  action_hint: string | null;
+  payload: InboundEventPayload;
+}
+
+/** Inner payload — carries the parsed-mail data plus envelope metadata that
+ *  used to live as siblings of `payload` (kind, occurred_at) so workflows can
+ *  still read them downstream. */
+export interface InboundEventPayload extends InboundPayload {
+  kind: string;
+  occurred_at: string;
 }
 
 /** Build a stable event id from the Message-ID header, falling back to the
@@ -132,42 +148,50 @@ export function buildInboundPayload(parsed: ParsedMail): InboundPayload {
   };
 }
 
-/** Build the full inbound TriggerEvent. */
-export function buildInboundEvent(parsed: ParsedMail, uid: number | string): InboundEvent {
+/** Build the full inbound TriggerEvent in the flat wire shape consumed by the
+ *  daemon's trigger supervisor. `triggerId` is the logical trigger id from the
+ *  project's workflow YAML (passed through from `trigger/watch`); pass `null`
+ *  when it's not available. */
+export function buildInboundEvent(
+  parsed: ParsedMail,
+  uid: number | string,
+  triggerId: string | null = null,
+): InboundEvent {
   const payload = buildInboundPayload(parsed);
   const occurredAt = parsed.date instanceof Date ? parsed.date.toISOString() : new Date().toISOString();
   return {
-    id: buildInboundEventId(parsed, uid),
-    occurred_at: occurredAt,
-    kind: KIND_EMAIL_RECEIVED,
-    payload,
+    event_id: buildInboundEventId(parsed, uid),
+    trigger_id: triggerId,
     subject_id: null,
+    subject_kind: null,
     action_hint: ACTION_HINT_CREATE_TASK,
+    payload: {
+      ...payload,
+      kind: KIND_EMAIL_RECEIVED,
+      occurred_at: occurredAt,
+    },
   };
 }
 
 /**
  * Build the params for a `trigger/event` notification.
  *
- * The wire shape is `{ id, event }` where `id` echoes the originating
- * `trigger/watch` request id and `event` is a full `TriggerEvent` (`event.id`
- * is the event's own stable id used for dedup/ack — there is NO `event_id`
- * field on the wire). Authoritative sources:
+ * The wire shape is the flat `TriggerEvent` directly — params IS the event.
+ * Authoritative sources (verified against live runtime):
  *
- *   - animus-protocol/spec.md §7.3 "trigger/event (notification)"
- *   - animus-protocol/animus-trigger-protocol/src/lib.rs `pub struct TriggerEvent`
- *     (fields: id, occurred_at, kind, payload, subject_id, action_hint)
- *   - animus-protocol/animus-plugin-runtime/src/lib.rs — the Rust runtime
- *     literally builds `payload.insert("id", request_id)` +
- *     `payload.insert("event", event_value)` for every emit
+ *   - crates/orchestrator-daemon-runtime/src/schedule/trigger_supervisor.rs:289
+ *     `serde_json::from_value::<TriggerEvent>(notification.params)`
+ *   - crates/animus-plugin-protocol/src/lib.rs `pub struct TriggerEvent`
+ *     (fields: event_id, trigger_id, subject_id, subject_kind, action_hint, payload)
  *
- * Get this wrong and events arrive without a stream to route into.
+ * The watch request id is no longer echoed on the wire — the daemon broadcasts
+ * to a single subscription per plugin, so correlation by request id is not
+ * needed. The `{ id, event }` wrapper documented in stale spec.md §7.3 is
+ * silently dropped by the supervisor. Sibling plugins (Discord, Telegram,
+ * SMS-Twilio) all use this flat shape.
  */
-export function buildTriggerEventNotificationParams(
-  watchRequestId: string | number | null,
-  event: InboundEvent,
-): { id: string | number | null; event: InboundEvent } {
-  return { id: watchRequestId, event };
+export function buildTriggerEventNotificationParams(event: InboundEvent): InboundEvent {
+  return event;
 }
 
 /** Apply the optional Subject regex filter. Returns true when the message
